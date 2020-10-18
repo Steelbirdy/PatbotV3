@@ -15,11 +15,11 @@ __all__ = [
 
 
 def __emoji(emoji_name: str) -> Callable[[Context, str], Awaitable[str]]:
-    async def inner(ctx: Context, text: str) -> str:
+    async def inner(ctx: Context, text: str = None) -> str:
         emoji = await ctx.bot.config.from_ctx(ctx, 'emojis', emoji_name)
         if not emoji:
             raise __errors.ConfigKeyError(f'Emoji not found: {emoji_name}')
-        return f'{emoji} {text.strip()}' if text else emoji
+        return f'{emoji} {text.strip()}' if text is not None else emoji
     return inner
 
 

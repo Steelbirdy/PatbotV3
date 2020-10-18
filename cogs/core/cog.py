@@ -18,16 +18,26 @@ class Core(commands.Cog):
         self.config.register_global(
             prefixes=['p!'],
             emojis={
-                'success': ':ok_hand:',
-                'warning': ':warning:',
-                'error': ':no_entry_sign:',
-                'fatal': ':skull:',
-                'info': ':information_source:',
+                'success': '\N{OK Hand Sign}',
+                'warning': '\N{Warning Sign}',
+                'error': '\N{No Entry Sign}',
+                'fatal': '\N{Skull}',
+                'info': '\N{Information Source}',
             },
             accepts_embeds=True,
-            embed_color=hex(discord.Color.blurple().value)
+            embed_color=hex(discord.Color.blurple().value),
         )
         self.config.register_guild(
+            prefixes=['p!'],
+            emojis={
+                'success': '\N{OK Hand Sign}',
+                'warning': '\N{Warning Sign}',
+                'error': '\N{No Entry Sign}',
+                'fatal': '\N{Skull}',
+                'info': '\N{Information Source}',
+            },
+            accepts_embeds=True,
+            embed_color=hex(discord.Color.blurple().value),
             enabled=True,
         )
 

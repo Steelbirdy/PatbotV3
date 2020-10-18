@@ -49,7 +49,7 @@ class Repl(commands.Cog, name='REPL'):
 
     def _register_defaults(self):
         self.config.register_guild(
-            enabled=True
+            enabled=False
         )
 
     @perms.creator()

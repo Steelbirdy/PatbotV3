@@ -5,8 +5,6 @@ from discord.ext.commands import Context as DpyContext
 import logging
 from typing import Awaitable, Callable, Optional, Union
 
-from core.formatting import success, warning, error, info
-
 
 class Context(DpyContext):
     log = logging.getLogger('context')
@@ -15,7 +13,8 @@ class Context(DpyContext):
     invoked_subcommand: Optional[commands.Command]
     me: Union[discord.ClientUser, discord.Member]
 
-    async def send(self, flavor: Union[str, Callable[["Context", str], Awaitable[str]]] = None, content: str = None, **kwargs):
+    async def send(self, flavor: Union[str, Callable[["Context", str], Awaitable[str]]] = None,
+                   content: str = None, **kwargs):
         _filter: Callable[[str], str] = kwargs.pop('filter', None)
         if content is not None:
             if flavor:
@@ -28,13 +27,25 @@ class Context(DpyContext):
             content = await self.format_content(str(content))
         return await super(Context, self).send(content=content, **kwargs)
 
-    async def react(self, reaction: Union[discord.Emoji, discord.Reaction, discord.PartialEmoji, str]) -> bool:
+    async def react(self, reaction: Union[discord.Emoji, discord.Reaction, discord.PartialEmoji, str,
+                                          Callable[["Context", str], Awaitable[str]]]) -> bool:
+        if callable(reaction):
+            reaction = await reaction(self)
         try:
             await self.message.add_reaction(reaction)
         except discord.HTTPException:
             return False
         else:
             return True
+
+    async def react_or_send(self,
+                            reaction: Union[discord.Emoji, discord.Reaction, discord.PartialEmoji, str,
+                                            Callable[["Context", str], Awaitable[str]]],
+                            content: str = None, **kwargs):
+        if not await self.react(reaction):
+            if callable(reaction):
+                reaction = await reaction(self)
+            await self.send(reaction, content, **kwargs)
 
     async def safe_delete(self, *, delay: float = 0) -> bool:
         try:
@@ -67,6 +78,9 @@ class Context(DpyContext):
 
     async def embed_color(self):
         return await self.bot.embed_color(self)
+
+    async def get_emoji(self, name: str):
+        return await self.bot.config.from_ctx(self, 'emojis', name)
 
     async def format_content(self, content: str) -> str:
         return content.format(botname=self.me.display_name, prefix=self.prefix)

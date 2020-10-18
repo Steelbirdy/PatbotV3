@@ -72,7 +72,7 @@ class CogManager(commands.Cog, name='Cog Manager'):
         if not cog_exists(cog_name):
             raise commands.ExtensionNotFound(cog_name)
         self.bot.load_cog(cog_name)
-        await ctx.send(success, f'Successfully loaded `{cog_name}`!')
+        await ctx.react_or_send(success, f'Successfully loaded `{cog_name}`!')
 
     @_cogs.command(name='unload')
     async def _cogs_unload(self, ctx: Context, *, cog_name: str):
@@ -83,7 +83,7 @@ class CogManager(commands.Cog, name='Cog Manager'):
         if not await Config.get_config(cog_name).cog_settings.allow_disable():
             raise errors.CogUnloadFailure(cog_name)
         self.bot.unload_cog(cog_name)
-        await ctx.send(success, f'Successfully unloaded `{cog_name}`!')
+        await ctx.react_or_send(success, f'Successfully unloaded `{cog_name}`!')
 
     @_cogs.command(name='reload')
     async def _cogs_reload(self, ctx: Context, *, cog_name: str):
@@ -94,7 +94,7 @@ class CogManager(commands.Cog, name='Cog Manager'):
         if cog_name == 'Cog Manager':
             raise errors.CogUnloadFailure(cog_name)
         self.bot.reload_cog(cog_name)
-        await ctx.send(success, f'Successfully reloaded `{cog_name}`!')
+        await ctx.react_or_send(success, f'Successfully reloaded `{cog_name}`!')
 
     @_cogs.command(name='info')
     async def _cogs_info(self, ctx: Context, *, cog_name: str):

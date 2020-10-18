@@ -61,7 +61,11 @@ class Patbot(commands.AutoShardedBot):
         return await super(Patbot, self).get_context(message, cls=cls)
 
     async def command_enabled_in_context(self, ctx: Context):
-        return True  # TODO
+        if await self.is_owner(ctx.author):
+            return await ctx.command.can_run(ctx)
+        if ctx.guild and ctx.cog is not None:
+            return await ctx.cog.config.guild(ctx).enabled()
+        return await ctx.command.can_run(ctx)
 
     async def process_commands(self, message: discord.Message):
         if message.author.bot:
