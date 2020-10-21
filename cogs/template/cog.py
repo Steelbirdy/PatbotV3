@@ -15,15 +15,23 @@ class Template(commands.Cog):
 
     def _register_defaults(self):
         self.config.register_guild(
-            enabled=False
+            enabled=False,
+            commands={
+                'test': False
+            }
         )
 
-    def cog_command_error(self, ctx: Context, error_):
+    async def cog_command_error(self, ctx: Context, error_):
         if isinstance(error_, commands.CommandInvokeError):
             error_ = error_.original
-        if isinstance(error_, (commands.BadArgument, commands.BadBoolArgument, commands.BadUnionArgument)):
-            return await ctx.send_help(ctx.command)
-        return await ctx.send(fatal, f'An uncaught error occurred: {error_}')
+        if isinstance(error_, commands.ArgumentParsingError):
+            if ctx.invoked_subcommand is not None:
+                return await ctx.send_help(ctx.invoked_subcommand)
+            else:
+                return await ctx.send_help(ctx.command)
+        if isinstance(error_, commands.BadArgument):
+            return await ctx.send(error, str(error_))
+        return await ctx.send(fatal, f'An uncaught {error_.__class__.__name__} occurred: {error_}')
 
     @perms.creator()
     @commands.command(name="test", hidden=True)

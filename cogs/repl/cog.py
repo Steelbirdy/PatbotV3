@@ -49,7 +49,11 @@ class Repl(commands.Cog, name='REPL'):
 
     def _register_defaults(self):
         self.config.register_guild(
-            enabled=False
+            enabled=False,
+            commands={
+                'eval': True,
+                'repl': True,
+            },
         )
 
     @perms.creator()
@@ -84,17 +88,17 @@ class Repl(commands.Cog, name='REPL'):
                 tr = await func()
         except Exception as e:
             value = stdout.getvalue()
-            await ctx.send(fatal, '\n' + block(f'{value}\n{traceback.format_exc()}'))
+            await ctx.send(fatal, '\n' + block(f'{value}\n{traceback.format_exc()}'), no_filter=True)
         else:
             value = stdout.getvalue()
             if tr is None:
                 if value:
-                    await ctx.send(':space_invader:', '**Output**' + block(value))
+                    await ctx.send(':space_invader:', '**Output**' + block(value), no_filter=True)
                 else:
-                    await ctx.send(':space_invader:', 'The `eval` ran successfully.')
+                    await ctx.send(':space_invader:', 'The `eval` ran successfully.', no_filter=True)
             else:
                 self._last_result = tr
-                await ctx.send(':space_invader:', '**Output**' + block(value + '\n' + str(tr)))
+                await ctx.send(':space_invader:', '**Output**' + block(value + '\n' + str(tr)), no_filter=True)
 
     @perms.creator()
     @commands.command(name='repl', hidden=True)

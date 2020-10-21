@@ -108,8 +108,8 @@ def owner() -> CheckPredicate:
 
 
 def guildowner() -> CheckPredicate:
-    def predicate(ctx: Context) -> bool:
-        return ctx.guild and (ctx.author == ctx.guild.owner or ctx.bot.is_owner(ctx.author))
+    async def predicate(ctx: Context) -> bool:
+        return ctx.guild and await PermissionsLevel.from_ctx(ctx) >= PermissionsLevel.GUILD_OWNER
     return commands.check(predicate)
 
 

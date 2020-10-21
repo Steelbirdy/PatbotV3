@@ -34,14 +34,16 @@ class CogManager(commands.Cog, name='Cog Manager'):
     def _register_defaults(self):
         self.config.register_guild(
             enabled=True,
+            commands={
+                'cogs': True,
+            },
         )
 
-    @perms.creator()
-    @commands.group(name='cogs')
+    @commands.group(name='cog', invoke_without_command=True, aliases=['cogs'])
     async def _cogs(self, ctx: Context):
-        """Allows control over cogs on a global or server basis."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(self._cogs)
+        """Allows control over cogs on a global or server basis.
+        """
+        await ctx.send_help(self._cogs)
 
     async def cog_command_error(self, ctx: Context, err: commands.CommandError):
         print(err.with_traceback(None))
@@ -51,29 +53,39 @@ class CogManager(commands.Cog, name='Cog Manager'):
 
         name = lambda x: x.name.split(".")[-2] if "." in x.name else x.name.lower().replace(" ", "")
 
+        if isinstance(err, commands.ArgumentParsingError):
+            if ctx.invoked_subcommand is not None:
+                return await ctx.send_help(ctx.invoked_subcommand)
+            else:
+                return await ctx.send_help(ctx.command)
+        if isinstance(err, commands.BadArgument):
+            return await ctx.send(error, str(err))
         if isinstance(err, commands.ExtensionNotFound):
             return await ctx.send(error, f'No cog named `{name(err)}` exists!')
-        elif isinstance(err, commands.ExtensionAlreadyLoaded):
+        if isinstance(err, commands.ExtensionAlreadyLoaded):
             return await ctx.send(error, f'`{name(err)}` is already loaded!')
-        elif isinstance(err, commands.ExtensionNotLoaded):
+        if isinstance(err, commands.ExtensionNotLoaded):
             return await ctx.send(error, f'`{name(err)}` is not currently loaded!')
-        elif isinstance(err, errors.CogUnloadFailure):
+        if isinstance(err, errors.CogUnloadFailure):
             return await ctx.send(error, f'`{name(err)}` cannot be unloaded!')
-        else:
-            # Catch-all
-            print(type(err))
-            await ctx.send(fatal, f'An unhandled error occurred: {err}')
-            raise err
+        # Catch-all
+        print(type(err))
+        await ctx.send(fatal, f'An uncaught {err.__class__.__name__} occurred: {err}')
+        raise err
 
+    @perms.creator()
     @_cogs.command(name='load')
     async def _cogs_load(self, ctx: Context, *, cog_name: str):
-        """Loads a cog globally. Only accessible to the owner of the bot."""
+        """Loads a cog globally.
+        Only accessible to the owner of the bot.
+        """
         cog_name = format_cog_name(cog_name)
         if not cog_exists(cog_name):
             raise commands.ExtensionNotFound(cog_name)
         self.bot.load_cog(cog_name)
         await ctx.react_or_send(success, f'Successfully loaded `{cog_name}`!')
 
+    @perms.creator()
     @_cogs.command(name='unload')
     async def _cogs_unload(self, ctx: Context, *, cog_name: str):
         """Unloads a cog globally. Only accessible to the owner of the bot."""
@@ -85,6 +97,7 @@ class CogManager(commands.Cog, name='Cog Manager'):
         self.bot.unload_cog(cog_name)
         await ctx.react_or_send(success, f'Successfully unloaded `{cog_name}`!')
 
+    @perms.creator()
     @_cogs.command(name='reload')
     async def _cogs_reload(self, ctx: Context, *, cog_name: str):
         """Reloads a cog globally. Only accessible to the owner of the bot."""
@@ -115,6 +128,45 @@ class CogManager(commands.Cog, name='Cog Manager'):
             return await ctx.send(embed=formatted)
         else:
             return await ctx.send(':gear:', formatted)
+
+    @perms.guildowner_or_permissions(administrator=True)
+    @_cogs.command(name='setenabled')
+    async def _cogs_setenabled(self, ctx: Context, *, cog_name: str):
+        """Manages which cogs are enabled and disabled on this server.
+        Permissions: Server owner only, or users with "administrator" permissions.
+        """
+        config = Config.get_config(cog_name)
+        if await config.cog_settings.allow_disable() is not True:
+            return await ctx.send(error, 'That cog cannot be disabled.')
+        enabled = not await config.guild(ctx).enabled()
+        await config.guild(ctx).enabled.set(enabled)
+        return await ctx.react_or_send(success, f'The `{cog_name}` cog was successfully '
+                                                f'{"enabled" if enabled else "disabled"}.')
+
+    @commands.group(name='command', invoke_without_command=True, aliases=['commands'])
+    async def _commands(self, ctx: Context):
+        """Manages which commands are enabled and disabled on this server.
+        """
+        await ctx.send_help(self._commands)
+
+    @perms.guildowner_or_permissions(administrator=True)
+    @_commands.command(name='setenabled')
+    async def _commands_setenabled(self, ctx: Context, *, command_name: str):
+        """Toggles whether a command is enabled and disabled on this server.
+        Permissions: Server owner only, or users with "administrator" permissions.
+
+        Note that specific subcommands cannot be disabled, only the parent command.
+        """
+        command = ctx.bot.get_command(command_name)
+        if command is None:
+            return await ctx.send(error, 'That command does not exist.')
+        config = command.cog.config
+        if not await config.cog_settings.allow_disable():
+            return await ctx.send(error, 'That command cannot be disabled.')
+        enabled = not await config.guild(ctx).commands[command_name]()
+        await config.guild(ctx).commands[command_name].set(enabled)
+        return await ctx.react_or_send(success, f'The `{command_name}` command was successfully '
+                                                f'{"enabled" if enabled else "disabled"}.')
 
 
 def setup(bot):

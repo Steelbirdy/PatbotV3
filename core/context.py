@@ -24,7 +24,12 @@ class Context(DpyContext):
                     content = f'{flavor} {content}'
             if _filter:
                 content = _filter(str(content))
-            content = await self.format_content(str(content))
+            if kwargs.pop('no_filter', False) is not True:
+                content = await self.format_content(str(content))
+
+        if 'delete_after' not in kwargs:
+            kwargs['delete_after'] = await self.bot.get_cog('Settings').config.from_ctx(self, 'delete_delay') or None
+
         return await super(Context, self).send(content=content, **kwargs)
 
     async def react(self, reaction: Union[discord.Emoji, discord.Reaction, discord.PartialEmoji, str,

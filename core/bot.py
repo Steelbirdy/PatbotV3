@@ -12,11 +12,11 @@ from core.context import Context
 class Patbot(commands.AutoShardedBot):
     def __init__(self, auth, **options):
         self.config = Config.core_config()
-        ext_to_preload = {'core', 'cogmanager', 'settings', *options.get('preload_extensions', [])}
+        ext_to_preload = {'core', 'cogmanager', 'repl', 'settings'}
 
         async def command_prefix(bot, message: discord.Message):
             # TODO: Use caching with a prefix manager
-            prefixes = await self.config.from_ctx(message, 'prefixes')
+            prefixes = await self.config.from_ctx(message, 'prefixes') or ['p!']
             return commands.when_mentioned_or(*prefixes)(bot, message)
 
         options['command_prefix'] = command_prefix
@@ -24,12 +24,6 @@ class Patbot(commands.AutoShardedBot):
             del options['owner_id']
         options['owner_ids'] = [auth['creator_id'], *auth['co_owner_ids']]
         options['intents'] = discord.Intents.default()
-
-        # Register auth values in the config
-        self.config.register_global(
-            creator_id=auth['creator_id'],
-            co_owner_ids=auth['co_owner_ids']
-        )
 
         self.__version__ = 'Not yet loaded'
 
@@ -63,8 +57,12 @@ class Patbot(commands.AutoShardedBot):
     async def command_enabled_in_context(self, ctx: Context):
         if await self.is_owner(ctx.author):
             return await ctx.command.can_run(ctx)
+
         if ctx.guild and ctx.cog is not None:
-            return await ctx.cog.config.guild(ctx).enabled()
+            print(ctx.command.name)
+            return await ctx.cog.config.guild(ctx).enabled() and\
+                await ctx.cog.config.from_ctx(ctx, "commands", ctx.command.name)
+
         return await ctx.command.can_run(ctx)
 
     async def process_commands(self, message: discord.Message):
@@ -80,6 +78,8 @@ class Patbot(commands.AutoShardedBot):
         return await self.config.from_ctx(ctx, 'accepts_embeds')
 
     async def embed_color(self, ctx: commands.Context):
+        if ctx.guild:
+            return ctx.me.color
         color = await self.config.from_ctx(ctx, 'embed_color')
         return discord.Color(int(color, base=16))
 

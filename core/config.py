@@ -6,11 +6,11 @@ import logging
 import os
 from pathlib import Path
 import pickle
-from typing import Any, AsyncContextManager, Awaitable, Dict, Optional, Sequence, Union, Generator
+from typing import Any, AsyncContextManager, Awaitable, Dict, Optional, Sequence, Union
 
 from core import errors
 
-__all__ = ['Config']
+__all__ = ["Config"]
 
 
 class _ValueContextManager(AsyncContextManager, Awaitable):
@@ -21,27 +21,24 @@ class _ValueContextManager(AsyncContextManager, Awaitable):
         self.__original_value = None
         self.__lock: asyncio.Lock = self.value_obj.get_lock()
 
-    def __await__(self) -> Generator:
-        """Used to get the config value when not using a context manager."""
+    def __await__(self):
         return self.coroutine.__await__()
 
     async def __aenter__(self):
-        """Acquires a lock for the config value and returns a deepcopy of it."""
         await self.__lock.acquire()
         self._raw_value = await self
         if not isinstance(self._raw_value, (dict, list)):
-            raise errors.ConfigIllegalOperation('Context manager value object must be mutable.')
+            raise errors.ConfigIllegalOperation('Context manager value must be mutable.')
         self.__original_value = deepcopy(self._raw_value)
         return self._raw_value
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Updates the config value if it was changed in the context block."""
         try:
             if isinstance(self._raw_value, dict):
                 raw = keys_to_str(self._raw_value)
             else:
                 raw = self._raw_value
-            if raw != self.__original_value:  # Update the config
+            if raw != self.__original_value:
                 await self.value_obj.set(self._raw_value)
         finally:
             self.__lock.release()
@@ -53,21 +50,24 @@ class Value:
         self._config = config
         self._default = default
 
-    def __call__(self, *, default=...) -> _ValueContextManager:
-        """Gets the config value, or use it as a context manager"""
-        return _ValueContextManager(self, self._get(default=default))
+    @property
+    def default(self):
+        return deepcopy(self._default)
+
+    def __call__(self) -> _ValueContextManager:
+        return _ValueContextManager(self, self._get())
 
     def get_lock(self) -> asyncio.Lock:
         return self._config._get_lock(*self._path)
 
-    async def _get(self, default: Any = ...) -> Any:
-        """This should not be used externally."""
-        if default is ...:
-            default = deepcopy(self._default)
-        return await self._config._get(*self._path, default=default)
+    async def _get(self) -> Any:
+        ret = await self._config._get(*self._path)
+        if ret is None:
+            return self.default
+        else:
+            return ret
 
     async def set(self, value: Any):
-        """Set the config value."""
         if isinstance(value, dict):
             value = keys_to_str(value)
         await self._config._set(*self._path, value=value)
@@ -77,44 +77,36 @@ class Value:
 
 
 class Group(Value):
-    def __init__(self, path: Sequence[str], config: "Config", defaults: Dict[str, Any] = ...):
+    def __init__(self, path: Sequence[str], config: "Config", defaults: Dict[str, Any] = None):
         super(Group, self).__init__(path, config, {})
         self._defaults = defaults
 
     @property
-    def defaults(self):
+    def default(self) -> Dict[str, Any]:
         return deepcopy(self._defaults)
 
-    def __getattr__(self, item: str):
-        """Gets a named subvalue of the group."""
+    defaults = default
+
+    def __getattr__(self, item: str) -> Value:
         is_group = self._is_group(item)
         is_value = not is_group and self._is_value(item)
-        new_path = [*deepcopy(self._path), item]
+        new_path = [*self._path, item]
         if is_group:
             return Group(new_path, self._config, self._defaults[item])
         elif is_value:
             return Value(new_path, self._config, self._defaults[item])
         else:
+            self._config.log.warning(f'Could not determine whether {".".join(self._path)}.{item} was a group or value.')
             return Value(new_path, self._config)
 
     def __getitem__(self, item):
-        """An alternative to __getattr__. For example,
-
-        ```py
-            item_to_get = some_list[0]
-
-            return await config[item_to_get]()
-        ```
-
-        which is not otherwise possible without using the global `getattr` function.
-        """
         return self.__getattr__(str(item))
 
-    def _is_group(self, item) -> bool:
+    def _is_group(self, item: str) -> bool:
         default = self._defaults.get(str(item))
         return isinstance(default, dict)
 
-    def _is_value(self, item) -> bool:
+    def _is_value(self, item: str) -> bool:
         try:
             default = self._defaults[str(item)]
         except KeyError:
@@ -122,26 +114,19 @@ class Group(Value):
         else:
             return not isinstance(default, dict)
 
-    async def _get(self, default: Dict[str, Any] = ...) -> Dict[str, Any]:
-        if default is ...:
-            default = deepcopy(self._defaults)
-        raw = await super(Group, self)._get(default=default)
+    async def _get(self) -> Dict[str, Any]:
+        raw = await super(Group, self)._get()
         if isinstance(raw, dict):
-            return self.nested_update(raw, default)
+            return self.nested_update(raw, self.defaults)
         else:
             return raw
 
     async def set(self, value: Dict[str, Any]):
         if not isinstance(value, dict):
-            raise errors.ConfigIllegalOperation('Failed to set value of a group to a non-dictionary.')
+            raise errors.ConfigIllegalOperation('Failed to set value of a group to a non-dictionary object.')
         await super(Group, self).set(value)
 
-    def nested_update(self, current: Dict[str, Any], defaults: Dict[str, Any] = ...) -> Dict[str, Any]:
-        """Recursively updates the given dictionary of default values with
-        the given current values.
-        """
-        if defaults is ...:
-            defaults = self.defaults
+    def nested_update(self, current: Dict[str, Any], defaults: Dict[str, Any]) -> Dict[str, Any]:
         for key, value in current.items():
             if isinstance(value, dict):
                 result = self.nested_update(value, defaults.get(key, {}))
@@ -186,7 +171,13 @@ class Config(metaclass=_ConfigMeta):
         self.log = logging.getLogger(cog_name + '.config')
         self._data = None
         self._data_path = Path(self._cogs_root_path, cog_name, 'config.json')
-        self._defaults = {}
+        self._defaults = {
+            self.GLOBAL: {},
+            self.GUILD: {},
+            self.TEXTCHANNEL: {},
+            self.VOICECHANNEL: {},
+            self.ROLE: {},
+        }
         self._locks = {}
         self._lock = asyncio.Lock()
         self._load_data()
@@ -206,9 +197,7 @@ class Config(metaclass=_ConfigMeta):
     def _get_lock(self, *path: str) -> asyncio.Lock:
         partial = self._locks
         for d in path:
-            if d not in partial:
-                partial[d] = {}
-            partial = partial[d]
+            partial = partial.setdefault(d, {})
         if None not in partial:
             partial[None] = asyncio.Lock()
         return partial[None]
@@ -222,46 +211,38 @@ class Config(metaclass=_ConfigMeta):
             raise errors.ConfigUnregisteredDefault(*path)
         return deepcopy(partial)
 
-    async def _get(self, *path: str, default: Any = ...) -> Any:
+    async def _get(self, *path: str) -> Any:
         partial = self._data
-        if default is ...:
-            # Can raise ConfigUnregisteredDefault error
-            default = self._get_default(*path)
         try:
             for d in path:
                 partial = partial[d]
-        except KeyError:
-            if default is ...:
-                raise errors.ConfigKeyError(*path)
-            return default
-        else:
             return deepcopy(partial)
+        except KeyError:
+            return None
 
-    async def _set(self, *path: str, value: Any) -> None:
+    async def _set(self, *path: str, value: Any):
         partial = self._data
         value_copy = json.loads(json.dumps(value))
         async with self._lock:
             try:
                 for p in path[:-1]:
                     partial = partial.setdefault(p, {})
+                partial[path[-1]] = value_copy
+                await self._save()
             except AttributeError:
-                raise errors.ConfigIllegalOperation(f'Failed to change "{self.cog_name}.{".".join(path)}".')
-            partial[path[-1]] = value_copy
-            await self._save()
+                raise errors.ConfigIllegalOperation(f'Failed to change {self.cog_name}.{".".join(path)}".')
 
-    async def _clear(self, *path: str) -> None:
+    async def _clear(self, *path: str):
         partial = self._data
         for p in path[:-1]:
             try:
                 partial = partial[p]
             except KeyError:
-                print('KeyError1:', *path)
                 return
         async with self._lock:
             try:
                 del partial[path[-1]]
             except KeyError:
-                print('KeyError2:', *path)
                 return
             await self._save()
 
@@ -279,7 +260,7 @@ class Config(metaclass=_ConfigMeta):
 
     @classmethod
     def core_config(cls) -> "Config":
-        return cls.get_config(cog_name='core')
+        return cls.get_config(cog_name="core")
 
     def _get_category(self, name: str, key: Optional[str] = None) -> Group:
         identifier = [name] if key is None else [name, key]
@@ -291,18 +272,14 @@ class Config(metaclass=_ConfigMeta):
         partial = self._defaults
         data = deepcopy(values)
 
-        if category not in partial:
-            partial[category] = {}
-        partial = partial[category]
+        partial = partial.setdefault(category, {})
         for k, v in data.items():
             split = k.split('__')
             tmp = partial
             for d in split[:-1]:
-                if d not in tmp:
-                    tmp[d] = {}
-                tmp = tmp[d]
+                tmp = tmp.setdefault(d, {})
             tmp[split[-1]] = v
-            self.log.debug(f'Registered `{v}` for `{".".join([category]+split)}`.')
+            self.log.debug(f'Registered `{v}` for `{".".join([category] + split)}`.')
 
     def register_global(self, **values):
         self._register_defaults(self.GLOBAL, **values)
@@ -325,8 +302,7 @@ class Config(metaclass=_ConfigMeta):
         self._register_defaults(name, **values)
 
     def init_custom(self, name: str):
-        if name not in self._data:
-            self._data[name] = {}
+        self._data.setdefault(name, {})
 
     @property
     def cog_settings(self) -> Group:
@@ -380,14 +356,10 @@ class Config(metaclass=_ConfigMeta):
     def roles(self) -> Group:
         return self._get_category(self.ROLE)
 
-    async def _ctx_default(self, ctx: Union[commands.Context, discord.Message], *path: str):
+    async def _ctx_default(self, ctx: Union[commands.Context, discord.Message], *path: str) -> Any:
         if not ctx.guild:
             return await self._get_default(self.GLOBAL, *path)
-        paths = (
-            self.TEXTCHANNEL,
-            self.GUILD,
-            self.GLOBAL,
-        )
+        paths = (self.TEXTCHANNEL, self.GUILD, self.GLOBAL)
         for p in paths:
             try:
                 ret = await self._get_default(p, *path)
@@ -398,21 +370,22 @@ class Config(metaclass=_ConfigMeta):
                     return ret
         return None
 
-    async def from_ctx(self, ctx: Union[commands.Context, discord.Message], *path: str, default: Any = ...):
-        if default is ...:
-            default = await self._ctx_default(ctx, *path)
+    async def from_ctx(self, ctx: Union[commands.Context, discord.Message], *path: str) -> Any:
         if not ctx.guild:
-            return await self._get(self.GLOBAL, *path, default=default)
+            return await self._get(self.GLOBAL, *path) or await self._ctx_default(ctx, *path)
         paths = (
-            (self.TEXTCHANNEL, str(ctx.channel.id)),
+            # (self.TEXTCHANNEL, str(ctx.channel.id)),
             (self.GUILD, str(ctx.guild.id)),
-            (self.GLOBAL,),
+            (self.GLOBAL,)
         )
         for p in paths:
-            ret = await self._get(*p, *path, default=None)
+            try:
+                ret = await self._get(*p, *path)
+            except errors.ConfigKeyError:
+                continue
             if ret is not None:
                 return ret
-        return default
+        return await self._ctx_default(ctx, *path)
 
 
 def save_json(path: Path, data: Dict[str, Any]):

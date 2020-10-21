@@ -23,7 +23,7 @@ async def cog_as_embed(ctx: Context, config: Config,
 
     cog_is_enabled = ctx.bot.get_cog(await settings.cog_name()) is not None
     if cog_is_enabled and ctx.guild and settings.allow_disable():
-        cog_is_enabled = await config.guild(ctx).enabled() or cog_is_enabled
+        cog_is_enabled = await config.guild(ctx).enabled() and cog_is_enabled
 
     fields = {
         'Version': '.'.join(str(x) for x in await settings.version()),
