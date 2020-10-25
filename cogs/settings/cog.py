@@ -79,7 +79,10 @@ class Settings(commands.Cog):
 
         # Delete delay
         delete_delay = await self.config.from_ctx(ctx, 'delete_delay')
-        delete_delay = f'`{delete_delay}` seconds'
+        if delete_delay == 0:
+            delete_delay = f'Never'
+        else:
+            delete_delay = f'`{delete_delay}` seconds'
 
         properties = {
             'Prefixes': (prefixes, False),
@@ -112,7 +115,10 @@ class Settings(commands.Cog):
         """Manage Patbot's nickname on this server.
         Permissions: Admin or higher, or "manage_nicknames" permissions.
         """
-        await ctx.me.edit(nick=nickname)
+        try:
+            await ctx.me.edit(nick=nickname)
+        except discord.HTTPException as e:
+            return await ctx.send(error, str(e))
         return await ctx.react_or_send(success, f'My nickname has been '
                                                 f'{"reset" if nickname is None else "changed"} successfully.')
 
@@ -169,7 +175,7 @@ class Settings(commands.Cog):
 
     @_prefix.command(name='del', aliases=['delete', 'remove'])
     async def _prefix_del(self, ctx: Context, *prefixes: str):
-        """Remove one or more prefixes to the list of accepted prefixes on this server.
+        """Remove one or more of this server's prefixes.
         Permissions: Admin or higher.
 
         Prefixes can be separated by spaces or commas.

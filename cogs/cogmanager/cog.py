@@ -36,6 +36,7 @@ class CogManager(commands.Cog, name='Cog Manager'):
             enabled=True,
             commands={
                 'cogs': True,
+                'command': True,
             },
         )
 
@@ -143,14 +144,16 @@ class CogManager(commands.Cog, name='Cog Manager'):
         return await ctx.react_or_send(success, f'The `{cog_name}` cog was successfully '
                                                 f'{"enabled" if enabled else "disabled"}.')
 
-    @commands.group(name='command', invoke_without_command=True, aliases=['commands'])
-    async def _commands(self, ctx: Context):
+    @perms.guildowner_or_permissions(administrator=True)
+    @commands.guild_only()
+    @commands.group(name='command', aliases=['commands'])
+    async def _cmd_commands(self, ctx: Context):
         """Manages which commands are enabled and disabled on this server.
         """
-        await ctx.send_help(self._commands)
+        if ctx.invoked_subcommand is None:
+            return await ctx.send_help(self._cmd_commands)
 
-    @perms.guildowner_or_permissions(administrator=True)
-    @_commands.command(name='setenabled')
+    @_cmd_commands.command(name='setenabled')
     async def _commands_setenabled(self, ctx: Context, *, command_name: str):
         """Toggles whether a command is enabled and disabled on this server.
         Permissions: Server owner only, or users with "administrator" permissions.

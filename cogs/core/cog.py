@@ -83,6 +83,11 @@ class Core(commands.Cog):
             await ctx.send(':wave:', 'Shutting down...')
             await self.bot.shutdown()
 
+    @_shutdown.error
+    async def _shutdown_error(self, ctx: Context, err: commands.CommandError):
+        if isinstance(err, commands.BadBoolArgument):
+            return await ctx.invoke(self._shutdown)
+
     @commands.command(name='ping')
     async def _ping(self, ctx: Context):
         """Pong!"""
@@ -101,9 +106,11 @@ class Core(commands.Cog):
     @commands.command(name='botserver', aliases=['supportserver', 'feedbackserver'])
     async def _botserver(self, ctx: Context):
         """Get an invite to Patbot's support server!"""
-        if ctx.guild and ctx.guild.id == 765314921151332464:
+        if not ctx.guild or ctx.guild.id != 765314921151332464:
             return await ctx.send(content=f'Here you go **{ctx.author.display_name}** :tada:\n'
                                           f'https://discord.gg/r6KXeYy')
+        else:
+            return await ctx.react_or_send(fmt.error, "This command shouldn't be used on my support server.")
 
     @commands.command(name='about', aliases=['info'])
     async def _about(self, ctx: Context):  # TODO: Wrap in info()
@@ -112,7 +119,9 @@ class Core(commands.Cog):
             'Version': self.bot.__version__,
             'Last boot': self.bot.last_boot.strftime("%B %d, %Y @ %I:%M%p"),
             'Developer': 'Steelbirdy#3536',
-            'Library': 'discord.py'
+            'Library': 'discord.py',
+            '# of cogs': len(self.bot.cogs),
+            '# of commands': len(self.bot.commands)
         }
         content = 'About **{botname}**'
 
@@ -142,7 +151,7 @@ class Core(commands.Cog):
 
         pyver = '{}.{}.{} ({})'.format(*sys.version_info[:3], platform.architecture()[0])
         pipver = pip.__version__
-        patbotver = '.'.join(str(x) for x in (await self.bot.__version__))
+        patbotver = self.bot.__version__
         dpy_version = discord.__version__
         if IS_WINDOWS:
             os_info = platform.uname()
