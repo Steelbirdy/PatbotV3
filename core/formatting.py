@@ -1,7 +1,7 @@
 import discord
 from discord.ext.commands import Context
 from io import BytesIO
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable, List, Optional
 
 import core.errors as __errors
 
@@ -58,15 +58,15 @@ def escape(text: str) -> str:
     return text.replace('@here', '@h\u1077re').replace('@everyone', '@\u1077veryone')
 
 
-def humanize_list(items, *, use_and: bool = True) -> str:
+def humanize_list(items, *, end_word='and') -> Optional[str]:
     items = list(map(str, items))
     if len(items) == 0:
-        raise IndexError('Cannot humanize empty sequence') from None
+        return None
     elif len(items) == 1:
         return items[0]
-    elif not use_and:
+    elif not end_word:
         return ', '.join(items)
-    return ', '.join(items[:-1]) + (',' if len(items) > 2 else '') + ' and ' + items[-1]
+    return ', '.join(items[:-1]) + (',' if len(items) > 2 else '') + f' {end_word} ' + items[-1]
 
 
 def format_permissions(permissions: discord.Permissions) -> str:
@@ -104,6 +104,26 @@ def __format_time_compact(seconds: int, use_days: bool = False) -> str:
         tr = f'{str(days).zfill(2)}:'
     tr += f'{str(hours).zfill(2)}:{str(minutes).zfill(2)}:{str(seconds).zfill(2)}'
     return tr
+
+
+def split_text(text: str, limit: int = 2000) -> List[str]:
+    if len(text) < limit:
+        return [text]
+    ret = []
+    current = text
+    while len(current) >= limit:
+        section = current[:limit]
+        split = section.rindex('\n')
+        if split == -1:
+            split = section.rindex('. ')
+            if split == -1:
+                split = limit - 1
+            ret.append(current[:split+1])
+        else:
+            ret.append(current[:split])
+        current = current[split + 1:]
+    ret.append(current)
+    return ret
 
 
 def text_to_file(text: str, file_name: str = 'file.txt',

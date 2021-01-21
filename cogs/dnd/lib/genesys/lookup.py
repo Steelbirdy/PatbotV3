@@ -1,0 +1,6 @@
+boost = ["-", "-", "S", "SA", "AA", "A"]
+setback = ["-", "-", "F", "F", "T", "T"]
+ability = ["-", "S", "S", "SS", "A", "A", "SA", "AA"]
+difficulty = ["-", "F", "FF", "T", "T", "T", "TT", "FT"]
+proficiency = ["-", "S", "S", "SS", "SS", "A", "SA", "SA", "SA", "AA", "AA", "R"]
+challenge = ["-", "F", "F", "FF", "FF", "T", "T", "FT", "FT", "TT", "TT", "D"]

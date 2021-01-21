@@ -70,6 +70,7 @@ class Repl(commands.Cog, name='REPL'):
             'message': ctx.message,
             'ans': self._last_result,
             'Config': self.bot.config.__class__,
+            'commands': commands,
         }
         env.update(globals())
 
@@ -103,7 +104,7 @@ class Repl(commands.Cog, name='REPL'):
     @perms.creator()
     @commands.command(name='repl', hidden=True)
     async def repl(self, ctx: Context):
-        """Opens a REPL in the channel this is used."""
+        """Opens a REPL in the channel this is used in."""
         env = {
             'bot': self.bot,
             'ctx': ctx,

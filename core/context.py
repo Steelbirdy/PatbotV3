@@ -88,4 +88,5 @@ class Context(DpyContext):
         return await self.bot.config.from_ctx(self, 'emojis', name)
 
     async def format_content(self, content: str) -> str:
-        return content.format(botname=self.me.display_name, prefix=self.prefix)
+        # return content.format(botname=self.me.display_name, prefix=self.prefix, )
+        return content  # TODO

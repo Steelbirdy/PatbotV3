@@ -34,10 +34,6 @@ class CogManager(commands.Cog, name='Cog Manager'):
     def _register_defaults(self):
         self.config.register_guild(
             enabled=True,
-            commands={
-                'cogs': True,
-                'command': True,
-            },
         )
 
     @commands.group(name='cog', invoke_without_command=True, aliases=['cogs'])
@@ -129,47 +125,6 @@ class CogManager(commands.Cog, name='Cog Manager'):
             return await ctx.send(embed=formatted)
         else:
             return await ctx.send(':gear:', formatted)
-
-    @perms.guildowner_or_permissions(administrator=True)
-    @_cogs.command(name='setenabled')
-    async def _cogs_setenabled(self, ctx: Context, *, cog_name: str):
-        """Manages which cogs are enabled and disabled on this server.
-        Permissions: Server owner only, or users with "administrator" permissions.
-        """
-        config = Config.get_config(cog_name)
-        if await config.cog_settings.allow_disable() is not True:
-            return await ctx.send(error, 'That cog cannot be disabled.')
-        enabled = not await config.guild(ctx).enabled()
-        await config.guild(ctx).enabled.set(enabled)
-        return await ctx.react_or_send(success, f'The `{cog_name}` cog was successfully '
-                                                f'{"enabled" if enabled else "disabled"}.')
-
-    @perms.guildowner_or_permissions(administrator=True)
-    @commands.guild_only()
-    @commands.group(name='command', aliases=['commands'])
-    async def _cmd_commands(self, ctx: Context):
-        """Manages which commands are enabled and disabled on this server.
-        """
-        if ctx.invoked_subcommand is None:
-            return await ctx.send_help(self._cmd_commands)
-
-    @_cmd_commands.command(name='setenabled')
-    async def _commands_setenabled(self, ctx: Context, *, command_name: str):
-        """Toggles whether a command is enabled and disabled on this server.
-        Permissions: Server owner only, or users with "administrator" permissions.
-
-        Note that specific subcommands cannot be disabled, only the parent command.
-        """
-        command = ctx.bot.get_command(command_name)
-        if command is None:
-            return await ctx.send(error, 'That command does not exist.')
-        config = command.cog.config
-        if not await config.cog_settings.allow_disable():
-            return await ctx.send(error, 'That command cannot be disabled.')
-        enabled = not await config.guild(ctx).commands[command_name]()
-        await config.guild(ctx).commands[command_name].set(enabled)
-        return await ctx.react_or_send(success, f'The `{command_name}` command was successfully '
-                                                f'{"enabled" if enabled else "disabled"}.')
 
 
 def setup(bot):

@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+import datetime
 import discord
 from discord.ext import commands
 from pathlib import Path
@@ -7,15 +7,16 @@ import sys
 
 from core.config import Config
 from core.context import Context
+from core import formatting as fmt
 
 
 class Patbot(commands.AutoShardedBot):
     def __init__(self, auth, **options):
         self.config = Config.core_config()
-        ext_to_preload = {'core', 'cogmanager', 'repl', 'settings'}
+        self._testing = False
+        ext_to_preload = {'cogmanager', 'core', 'dnd', 'fun', 'polling', 'repl', 'settings'}
 
         async def command_prefix(bot, message: discord.Message):
-            # TODO: Use caching with a prefix manager
             prefixes = await self.config.from_ctx(message, 'prefixes') or ['p!']
             return commands.when_mentioned_or(*prefixes)(bot, message)
 
@@ -24,6 +25,7 @@ class Patbot(commands.AutoShardedBot):
             del options['owner_id']
         options['owner_ids'] = [auth['creator_id'], *auth['co_owner_ids']]
         options['intents'] = discord.Intents.default()
+        options['intents'].members = True
 
         self.__version__ = 'Not yet loaded'
 
@@ -34,11 +36,14 @@ class Patbot(commands.AutoShardedBot):
             self.load_cog(ext)
 
         # Record boot time
-        self.last_boot = datetime.now()
+        self.last_boot = datetime.datetime.now()
 
     async def on_ready(self):
         self.__version__ = '.'.join(map(str, await self.config.version()))
-        await self.change_presence(status=discord.Status.dnd, activity=discord.Game('Patbot testing'))
+        if not self._testing:
+            await self.change_presence(activity=discord.Game('!!help'))
+        else:
+            await self.change_presence(activity=discord.Game('Patbot testing'))
 
     async def shutdown(self):
         await self.logout()
@@ -52,26 +57,15 @@ class Patbot(commands.AutoShardedBot):
         sys.exit(3)
 
     async def get_context(self, message, *, cls=Context):
-        return await super(Patbot, self).get_context(message, cls=cls)
-
-    async def command_enabled_in_context(self, ctx: Context):
-        if await self.is_owner(ctx.author):
-            return await ctx.command.can_run(ctx)
-
-        if ctx.guild and ctx.cog is not None:
-            print(ctx.command.name)
-            return await ctx.cog.config.guild(ctx).enabled() and\
-                await ctx.cog.config.from_ctx(ctx, "commands", ctx.command.name)
-
-        return await ctx.command.can_run(ctx)
+        return await super().get_context(message, cls=cls)
 
     async def process_commands(self, message: discord.Message):
-        if message.author.bot:
-            return
-        ctx = await self.get_context(message)
-        if ctx.valid is True and await self.command_enabled_in_context(ctx):
+        if not message.author.bot:
+            ctx = await self.get_context(message)
             await self.invoke(ctx)
-        elif ctx is None or ctx.valid is False:
+        else:
+            ctx = None
+        if ctx is None or ctx.valid is False:
             self.dispatch('message_without_command', message)
 
     async def accepts_embeds(self, ctx: commands.Context):
@@ -98,3 +92,24 @@ class Patbot(commands.AutoShardedBot):
     def unload_cog(self, name: str):
         name = self._format_cog_name(name)
         return super(Patbot, self).unload_extension(f'cogs.{name}.cog')
+
+    async def on_command_error(self, ctx: Context, exception):
+        if isinstance(exception, commands.CommandInvokeError):
+            exception = exception.original
+        if isinstance(exception, commands.CommandNotFound):
+            return
+        if isinstance(exception, commands.MissingRequiredArgument):
+            return await ctx.send_help(ctx.command)
+        if isinstance(exception, commands.BotMissingPermissions):
+            content = 'I need `' + fmt.format_permissions(exception.missing_perms) + \
+                      '` permissions to run that command.'
+            return await ctx.send(fmt.error, content)
+        if isinstance(exception, commands.ArgumentParsingError):
+            if ctx.invoked_subcommand is not None:
+                return await ctx.send_help(ctx.invoked_subcommand)
+            else:
+                return await ctx.send_help(ctx.command)
+        if isinstance(exception, commands.BadArgument):
+            return await ctx.send(fmt.error, str(exception))
+        await ctx.send(fmt.fatal, f'An uncaught {exception.__class__.__name__} occurred: {exception}')
+        raise exception

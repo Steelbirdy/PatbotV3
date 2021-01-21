@@ -22,31 +22,8 @@ class Settings(commands.Cog):
         self.config.register_guild(
             admin_roles=[],
             mod_roles=[],
-            enabled=True,
-            commands={
-                'settings': True,
-                'nickname': True,
-                'prefix': True,
-                'admin': True,
-                'mod': True,
-                'emoji': True,
-                'deletedelay': True,
-            },
             delete_delay=0,
         )
-
-    async def cog_command_error(self, ctx: Context, error_):
-        if isinstance(error_, commands.CommandInvokeError):
-            error_ = error_.original
-        if isinstance(error_, commands.ArgumentParsingError):
-            if ctx.invoked_subcommand is not None:
-                return await ctx.send_help(ctx.invoked_subcommand)
-            else:
-                return await ctx.send_help(ctx.command)
-        if isinstance(error_, commands.BadArgument):
-            return await ctx.send(error, str(error_))
-        await ctx.send(fatal, f'An uncaught {error_.__class__.__name__} occurred: {error_}')
-        raise error_
 
     @commands.guild_only()
     @commands.command(name='settings')
@@ -57,7 +34,7 @@ class Settings(commands.Cog):
         botconfig = ctx.bot.config
 
         # Prefixes
-        prefixes = humanize_list([f"`{p}`" for p in await botconfig.from_ctx(ctx, 'prefixes')], use_and=False)
+        prefixes = humanize_list([f"`{p}`" for p in await botconfig.from_ctx(ctx, 'prefixes')])
 
         # Bot Administrator Roles
         admin_roles = await self.config.guild(ctx).admin_roles()

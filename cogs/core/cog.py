@@ -1,3 +1,4 @@
+import datetime
 import discord
 from discord.ext import commands, menus
 import getpass
@@ -22,7 +23,7 @@ class Core(commands.Cog):
 
     def _register_defaults(self):
         self.config.register_global(
-            prefixes=['p!'],
+            prefixes=['!!'],
             emojis={
                 'success': '\N{OK Hand Sign}',
                 'warning': '\N{Warning Sign}',
@@ -34,7 +35,7 @@ class Core(commands.Cog):
             embed_color=hex(discord.Color.blurple().value),
         )
         self.config.register_guild(
-            prefixes=['p!'],
+            prefixes=['!!'],
             emojis={
                 'success': '\N{OK Hand Sign}',
                 'warning': '\N{Warning Sign}',
@@ -44,30 +45,7 @@ class Core(commands.Cog):
             },
             accepts_embeds=True,
             embed_color=hex(discord.Color.blurple().value),
-            enabled=True,
-            commands={
-                'shutdown': True,
-                'ping': True,
-                'invite': True,
-                'botserver': True,
-                'about': True,
-                'debuginfo': True,
-                'contact': True,
-                'dm': True,
-            }
         )
-
-    async def cog_command_error(self, ctx: Context, error_):
-        if isinstance(error_, commands.CommandInvokeError):
-            error_ = error_.original
-        if isinstance(error_, commands.ArgumentParsingError):
-            if ctx.invoked_subcommand is not None:
-                return await ctx.send_help(ctx.invoked_subcommand)
-            else:
-                return await ctx.send_help(ctx.command)
-        if isinstance(error_, commands.BadArgument):
-            return await ctx.send(fmt.error, str(error_))
-        return await ctx.send(fmt.fatal, f'An uncaught {error_.__class__.__name__} occurred: {error_}')
 
     @perms.owner()
     @commands.command(name='shutdown')
@@ -103,27 +81,28 @@ class Core(commands.Cog):
         await ctx.send(content=f'**{ctx.author.display_name}**, use this URL to invite me to your server:\n'
                                f'<{discord.utils.oauth_url(ctx.me.id)}>')
 
-    @commands.command(name='botserver', aliases=['supportserver', 'feedbackserver'])
-    async def _botserver(self, ctx: Context):
-        """Get an invite to Patbot's support server!"""
-        if not ctx.guild or ctx.guild.id != 765314921151332464:
-            return await ctx.send(content=f'Here you go **{ctx.author.display_name}** :tada:\n'
-                                          f'https://discord.gg/r6KXeYy')
-        else:
-            return await ctx.react_or_send(fmt.error, "This command shouldn't be used on my support server.")
+    # @commands.command(name='botserver', aliases=['supportserver', 'feedbackserver'], enabled=False)
+    # async def _botserver(self, ctx: Context):
+    #     """Get an invite to Patbot's support server!"""
+    #     if not ctx.guild or ctx.guild.id != 765314921151332464:
+    #         return await ctx.send(content=f'Here you go **{ctx.author.display_name}** :tada:\n'
+    #                                       f'https://discord.gg/r6KXeYy')
+    #     else:
+    #         return await ctx.react_or_send(fmt.error, "This command can't be used here.")
 
     @commands.command(name='about', aliases=['info'])
-    async def _about(self, ctx: Context):  # TODO: Wrap in info()
+    async def _about(self, ctx: Context):
         """About Patbot."""
         properties = {
             'Version': self.bot.__version__,
-            'Last boot': self.bot.last_boot.strftime("%B %d, %Y @ %I:%M%p"),
+            'Last boot': (self.bot.last_boot - datetime.timedelta(hours=5)).strftime("%B %d, %Y @ %I:%M%p") + ' EST',
             'Developer': 'Steelbirdy#3536',
             'Library': 'discord.py',
+            '# of servers': len(self.bot.guilds),
             '# of cogs': len(self.bot.cogs),
-            '# of commands': len(self.bot.commands)
+            '# of commands': len(self.bot.commands),
         }
-        content = 'About **{botname}**'
+        content = '**About Patbot**'
 
         if await ctx.accepts_embeds():
             embed = await ctx.default_embed()

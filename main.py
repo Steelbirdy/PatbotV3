@@ -1,14 +1,13 @@
-import discord
-from discord.ext import commands
 import json
 import logging
-import time
+import sys
 
 from core import Patbot
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    args = sys.argv[1:]
+    logging.basicConfig(level=logging.INFO)
     logging.info('Logging initialized.')
 
     with open("resources/auth.json", mode='r') as file:
@@ -17,4 +16,10 @@ if __name__ == '__main__':
 
     bot = Patbot(auth=auth)
 
-    bot.run(auth['login_token'])
+    if 'testing' in args:
+        login_token = auth['test_login_token']
+        bot._testing = True
+    else:
+        login_token = auth['login_token']
+
+    bot.run(login_token)

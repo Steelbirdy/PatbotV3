@@ -3,9 +3,11 @@ from discord.ext import commands
 from discord.ext.commands import Context
 import enum
 from typing import Awaitable, Callable, Optional, Union
+from core.config import Config
 
 
 CheckPredicate = Callable[[Context], Union[Optional[bool], Awaitable[Optional[bool]]]]
+settings_config = Config.get_config(cog_name='settings')
 
 DM_PERMISSIONS = discord.Permissions(
     add_reactions=True,
@@ -38,7 +40,7 @@ class PermissionsLevel(enum.IntEnum):
         if ctx.author == ctx.guild.owner:
             return cls.GUILD_OWNER
 
-        guild_settings = ctx.bot.config.guild(ctx)
+        guild_settings = settings_config.guild(ctx)
         roles = set(ctx.author.roles)
 
         if 'admin' in roles or 'administrator' in roles or \
@@ -93,6 +95,12 @@ def author_has_all_roles(ctx: Context, *roles: str) -> bool:
     if not ctx.guild:
         return False
     return user_has_all_roles(ctx.author, *roles)
+
+
+def meme_team() -> CheckPredicate:
+    def predicate(ctx: Context) -> bool:
+        return ctx.guild.id == 300755943912636417
+    return commands.check(predicate)
 
 
 def creator() -> CheckPredicate:
